@@ -1,0 +1,37 @@
+- hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx=1.18.0-6ubuntu14.6
+        state: fixed
+        update_cache: true
+        autoremove: true
+        autoclean: true
+
+    - name: Delete nginx default site
+      ansible.builtin.file:
+        path: /var/www/html
+        state: absent
+
+    - name: Create nginx app directory
+      ansible.builtin.file:
+        path: /var/www/html
+        state: directory
+        mode: 0755
+        owner: vagrant
+        group: vagrant
+
+    - name: Create nginx app index.html
+      ansible.builtin.copy:
+        src: files/index.html
+        dest: /var/www/html/index.html
+        mode: 0644
+        owner: vagrant
+        group: vagrant
+
+    - name: Start nginx service
+      ansible.builtin.service:
+        name: nginx
+        state: started

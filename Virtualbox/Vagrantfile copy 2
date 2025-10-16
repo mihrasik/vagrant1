@@ -1,0 +1,65 @@
+# Vagrantfile – two‑disk Ubuntu VM (VirtualBox)
+
+# ------------------------------------------------------------------
+# 1. Basic configuration
+# ------------------------------------------------------------------
+Vagrant.configure("2") do |config|
+  # Use an official Ubuntu LTS box
+  config.vm.box = "ubuntu/focal64"   # 20.04 LTS
+  config.vm.box_version = "20240814.0.0"  # optional – pick the latest
+
+  # Give the VM 2 GB RAM – tweak as you like
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "2048"
+  end
+
+  # ------------------------------------------------------------------
+  # 2. Add a second disk (10 GB)
+  # ------------------------------------------------------------------
+  config.vm.provider "virtualbox" do |vb|
+    # Create a new VDI file (dynamic size, 10 GB)
+    vb.customize [
+      "createhd",
+      "--filename", "exp_disk.vdi",
+      "--size", "2240",            # size in MB
+      "--format", "VDI",
+      "--variant", "Standard"
+    ]
+
+    # Attach it as /dev/sdb inside the guest
+    vb.customize [
+      "storageattach",
+      :id,                          # refers to the VM created by Vagrant
+      "--storagectl", "SATA Controller",
+      "--port", 1,                  # 0 = OS disk, 1 = second disk
+      "--device", 0,
+      "--type", "hdd",
+      "--medium", "exp_disk.vdi"
+    ]
+  end
+
+  # ------------------------------------------------------------------
+  # 3. Provision: install disk tools & mount /dev/sdb
+  # ------------------------------------------------------------------
+  config.vm.provision "shell", inline: <<-SHELL
+    # Update apt and install common tools
+    sudo apt-get update -y
+    sudo apt-get install -y e2fsprogs gdisk parted
+
+    # Make the second disk appear as /dev/sdb
+    # (VirtualBox names it /dev/sdb automatically)
+
+    # Optional: create a single partition & mount it
+    # Uncomment the block below if you want an auto‑mounted ext4
+
+    # if ! sudo fdisk -l /dev/sdb | grep -q '^Disk /dev/sdb'; then
+    #   echo "Creating a single partition on /dev/sdb..."
+    #   echo -e "n\np\n1\n\n\nw" | sudo fdisk /dev/sdb
+    #   sudo partprobe /dev/sdb
+    #   sudo mkfs.ext4 /dev/sdb1
+    #   sudo mkdir -p /mnt/exp
+    #   echo '/dev/sdb1 /mnt/exp ext4 defaults 0 0' | sudo tee -a /etc/fstab
+    #   sudo mount -a
+    # fi
+  SHELL
+end

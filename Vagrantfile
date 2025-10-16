@@ -1,0 +1,17 @@
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'docker' # We define the provider to use which is Docker, Start of instruction 1
+
+Vagrant.configure("2") do |config| #Start of instruction 2
+    #config.vm.network "forwarded_port", guest: 22, host: 2222 # Make sure this is correct
+    config.vm.define "admin" do |admin| # We define a name for the instance we have to set up
+      admin.vm.network "forwarded_port", guest: 80, host: 80 # We ask that the port 80 of the host is the same as the one of the container
+      admin.vm.network "forwarded_port", guest: 443, host: 443 #We are requesting that port 443 on the host is the same as the container port
+      admin.vm.provider "docker" do |admin| # Start of statement 3
+      admin.image = "datascientest:vagrant4" # We define the docker image to use
+      # admin.build_dir = "." # We can also define the location of the Dockerfile which is the current directory to build our image
+      admin.has_ssh = true # Possible connection in SSH
+      admin.privileged = true # Run the container with privileges on the underlying machine
+      admin.create_args = ["-v", "/sys/fs/cgroup:/sys/fs/cgroup:ro"] #We create a volume that connects our host's cgroup directory to our containers' directory
+            admin.name = "admin" #We define a name for our container
+    end #End of statement 3
+  end #End of instruction 2
+end #End of instruction 1

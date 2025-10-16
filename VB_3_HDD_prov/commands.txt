@@ -1,0 +1,17 @@
+VBoxManage list vms
+VBoxManage list hdds
+VBoxManage closemedium disk /home/ubuntu/datascientest_vagrant/VB_3_HDD_prov/extra_disk2.vdi --delete
+VBoxManage closemedium disk /home/ubuntu/datascientest_vagrant/VB_3_HDD_prov/extra_disk3.vdi --delete
+
+sudo sgdisk --zap-all /dev/sdb
+
+sudo sgdisk --new=1:0:+300M --typecode=1:8300 /dev/sdb
+sudo sgdisk --new=1:0:+300M --typecode=2:8300 /dev/sdb
+
+# 1. Show GPT table
+sudo sgdisk -p /dev/sdb
+# or
+sudo gdisk -l /dev/sdb
+
+# sudo apt-get update
+# sudo apt-get install -y gdisk

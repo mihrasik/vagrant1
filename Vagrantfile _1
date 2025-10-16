@@ -1,0 +1,9 @@
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'docker' # Definition of an environment variable to specify the provider to use by default for our vagrantfile
+Vagrant.configure("2") do |config| # We configure an instance called config, we will provide it with parameters later
+  config.vm.provider "docker" do |container| # we define the virtualization layer we will drive
+    container.image = "nginx" # we define the docker image to use
+    container.ports = ["80:80"] #define a port will be opened on the vagrant machine and redirected to container
+    container.name = "nginx-container" # We give a name to our container end 
+  config.vm.synced_folder ".", "/vagrant" # We define a volume used in the container "/vagrant" which will be synchronized with the current directory where the Vagrantfile is located
+  end # We specify an end for the config statement
+end # We specify an end for the Vagrant statement

@@ -1,0 +1,66 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+ubuntu_version = "jammy64"
+app_nodes = 2
+cidr_prefix = "192.168.23"
+
+
+Vagrant.configure("2") do |config|
+  # config.vm.provision "file", source: "./playbooks/files/vagrant.key.pub", destination: "/home/vagrant/.ssh/"
+  config.vm.define "mngm" do |mngm|
+    mngm.vm.box = "ubuntu/#{ubuntu_version}"
+    mngm.vm.box_check_update = true
+    mngm.vm.hostname = "mngm"
+    mngm.vm.network "forwarded_port", guest: 80, host: 9001
+    # mngm.vm.network "private_network", ip: "#{cidr_prefix}.10"
+    # mngm.vm.synced_folder "./scripts", "/home/vagrant/scripts"
+    mngm.vm.provider "virtualbox" do |vb|
+      vb.name = "mngm"
+      vb.gui = false
+      vb.cpus   = 4
+      vb.memory = "4096"
+    end
+
+    mngm.vm.provision "shell", inline: <<-SHELL
+      # cp /vagrant/playbooks/files/vagrant.key /home/vagrant/.ssh/vagrant.key
+      # sudo chmod 600 /home/vagrant/.ssh/vagrant.key
+      # sudo chown vagrant:vagrant /home/vagrant/.ssh/vagrant.key
+      # sudo service ssh restart
+    SHELL
+
+    # mngm.vm.provision "ansible_local" do |ansible|
+    #   ansible.install = true
+    #   ansible.playbook = "./playbooks/playbook.yml"
+    #   ansible.inventory_path = "./playbooks/inventory.ini"
+    #   ansible.limit = "app"
+    # end
+
+
+  end
+
+  (1..app_nodes).each do |i|
+    config.vm.define "app-#{i}" do |app|
+      app.vm.box = "ubuntu/#{ubuntu_version}"
+      app.vm.box_check_update = true
+
+      app.vm.hostname = "app-#{i}"
+      # app.vm.network "private_network", ip: "#{cidr_prefix}.#{10 + i}"
+      # app.vm.synced_folder "./scripts", "/home/vagrant/scripts"
+
+      app.vm.network "forwarded_port", guest: 80, host: "#{9001 + i}"
+
+      app.vm.provider "virtualbox" do |vb|
+        vb.name = "app-#{i}"
+        vb.gui = false
+        vb.cpus   = 2
+        vb.memory = "4096"
+      end
+
+      app.vm.provision "shell", inline: <<-SHELL
+        # sudo chmod 644 /home/vagrant/.ssh/vagrant.key.pub
+        # cat /home/vagrant/.ssh/vagrant.key.pub >> /home/vagrant/.ssh/authorized_keys
+      SHELL
+    end
+  end
+end

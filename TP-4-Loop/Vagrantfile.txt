@@ -1,0 +1,43 @@
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'docker' # We define the provider to use which is Docker, Start of instruction 1
+Vagrant.configure("2") do |config| #Start of instruction 2
+    config.vm.define "server_web" do |server_web| # We define a name for the instance we have to set up
+    
+    server_web.create_args = ['--cpuset-cpus=1'] # We decide to allocate 1 Vcpus (virtual processor) to our container or virtual machine 
+    server_web.create_args = ['--memory=1g'] # We decide to allocate 6G of RAM to our container or virtual machine
+    
+    server_web.vm.network "private_network", ip: "192.168.10.10", netmask: 24
+    server_web.vm.network :"private_network", ip: "192.168.20.10", netmask: 24
+    # server_web.vm.network "public_network", ip: "192.168.121.61"
+    server_web.vm.hostname = "datascientest2"
+    # server_web.vm.network "public_network", type: "dhcp", bridge: "ens3"
+    server_web.vm.network "public_network", type: "dhcp", bridge: "ens3", docker_network__gateway: "10.52.26.1", docker_network__ip_range: "10.52.26.0/24"
+    # server_web.vm.network "public_network", ip: "10.52.26.61", bridge: "ens3", docker_network__ip_range: "10.52.26.0/24", docker_network__gateway: "10.52.26.1"
+    server_web.vm.network "forwarded_port", guest: 80, host: 9000 # We ask that port 9000 of the host be forwarded to port 80 of the container
+    # changing protocol to udp
+    # server_web.vm.network "forwarded_port", guest: 80, host: 9000, auto_correct: true, protocol: "udp"
+    server_web.vm.provider "docker" do |server_web| # Start of instruction 3
+      server_web.image = "datascientest:vagrant8" # We define the docker image to use
+      # admin.build_dir = "." # We can also define the location of the Dockerfile which is the current directory to build our image
+      server_web.has_ssh = true # Possible connection in SSH
+      server_web.privileged = true # Run the container with privileges on the underlying machine
+       # Combine all Docker create args here
+       # Configure CPU and memory using create_args
+      server_web.create_args = [
+        "--cpus=1",                  # Allocate 2 CPU cores
+        "--memory=2048m",            # Allocate 2048 MB (2 GB) of memory
+        "-v", "/sys/fs/cgroup:/sys/fs/cgroup:ro"  # Mount cgroup (required for some Docker versions)
+      ]
+
+      # server_web.create_args = [
+      #   "--cpuset-cpus=1",         # Allocate 1 CPU
+      #   "--memory=1g",             # Allocate 1GB RAM
+      #   "-v", "/sys/fs/cgroup:/sys/fs/cgroup:ro"  # Mount cgroup
+      # ]
+
+      # server_web.create_args = ["-v", "/sys/fs/cgroup:/sys/fs/cgroup:ro"] # We create a volume that connects our host's cgroup directory to our container's
+      # server_web.create_args = ['--cpuset-cpus=1'] # We decide to allocate 1 Vcpus (virtual processor) to our container or virtual machine 
+      # server_web.create_args = ['--memory=1g'] # We decide to allocate 6G of RAM to our container or virtual machine
+      server_web.name = "server_web" #We define a name for our container
+    end #End of statement 3
+  end #End of instruction 2
+end #End of instruction 1

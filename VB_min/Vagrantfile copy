@@ -1,0 +1,38 @@
+# Minimal Vagrantfile – just the box, no extra disk
+Vagrant.configure("2") do |config|
+  # ------------------------------------------------------------
+  config.vm.box = "ubuntu/jammy64"
+  config.vm.hostname = "dst-linux-disk"
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 1024   # 1 GB – just to be explicit
+    vb.customize [
+      "storagectl", :id,
+      "--name", "SATA Controller",
+      "--add", "sata",
+      "--controller", "IntelAhci"
+    ]
+
+    # ---- 2b. Path for the new VDI
+    disk_name = "exp_disk.vdi"
+    disk_path = File.expand_path(disk_name, __dir__)  # e.g. /home/ubuntu/.../Virtualbox/exp_disk.vdi
+
+    # ---- 2c. Create the disk (10 GB)
+    vb.customize [
+      "createhd",
+      "--filename", disk_path,
+      "--size", "10240",      # 10 GB (1024 × 10)
+      "--format", "VDI",
+      "--variant", "Standard"
+    ]
+
+    # ---- 2d. Attach the disk to the controller
+    vb.customize [
+      "storageattach", :id,
+      "--storagectl", "SATA Controller",
+      "--port", 1,
+      "--device", 0,
+      "--type", "hdd",
+      "--medium", disk_path
+    ]
+  end
+end

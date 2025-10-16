@@ -1,0 +1,31 @@
+FROM ubuntu:focal
+
+# Prevent tzdata from asking questions
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install required packages
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    sudo \
+    passwd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create SSH directory
+RUN mkdir /var/run/sshd
+
+# Create vagrant user with password 'vagrant'
+RUN useradd -m -s /bin/bash vagrant \
+    && echo "vagrant:vagrant" | chpasswd \
+    && usermod -aG sudo vagrant
+
+# Allow passwordless sudo for vagrant
+RUN echo "vagrant ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Expose SSH port
+EXPOSE 22
+
+# Add cgroup volume
+VOLUME ["/sys/fs/cgroup"]
+
+# Start SSH daemon
+CMD ["/usr/sbin/sshd", "-D"]

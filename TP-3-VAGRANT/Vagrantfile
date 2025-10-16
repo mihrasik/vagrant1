@@ -1,0 +1,52 @@
+# names = ['Anthony', 'Alban', 'Lewis', 'Charles']
+# i = 1
+
+# names.each do |name|
+#   puts "#{i}. #{name}"
+#   i += 1
+# end
+
+Vagrant.configure("2") do |config|
+  # Define the datascientest_1 VM
+  config.vm.define "datascientest_1" do |datascientest_1|
+    datascientest_1.vm.hostname = "datascientest1"
+    datascientest_1.vm.provider "docker" do |server_1|
+      server_1.image = "datascientest:vagrant6"
+      server_1.create_args = [
+        "--cpuset-cpus=1",
+        "--memory=1g"
+      ]
+    end
+    datascientest_1.vm.network "private_network", ip: "192.168.1.10", netmask: 24
+  end
+
+  # Define the datascientest_2 VM
+  config.vm.define "datascientest_2" do |datascientest_2|
+    datascientest_2.vm.hostname = "datascientest2"
+    datascientest_2.vm.provider "docker" do |server_2|
+      server_2.image = "datascientest:vagrant6"
+      server_2.create_args = [
+        "--cpuset-cpus=1",
+        "--memory=1g"
+      ]
+    end
+    datascientest_2.vm.network "private_network", ip: "192.168.1.11", netmask: 24
+    datascientest_2.vm.network "private_network", ip: "192.168.2.11", netmask: 24
+  end
+
+  # Define the datascientest_3 VM
+  config.vm.define "datascientest_3" do |datascientest_3|
+    datascientest_3.vm.hostname = "datascientest3"
+    datascientest_3.vm.provider "docker" do |server_3|
+      server_3.image = "datascientest:vagrant6"
+      server_3.create_args = [
+        "--cpuset-cpus=1",
+        "--memory=1g"
+      ]
+    end
+    datascientest_3.vm.network "private_network", ip: "192.168.2.10", netmask: 24
+  end
+
+  # Define the networks
+  # config.vm.network "private_network", ip: "192.168.1.0/24"
+end

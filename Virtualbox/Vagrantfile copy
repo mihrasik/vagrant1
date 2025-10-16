@@ -1,0 +1,62 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "ubuntu/focal64"
+  config.vm.box_version = "20240814.0.0"
+
+  # 1. Memory
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "2048"
+  end
+
+  # 2. Add a second disk (10 GB)
+  config.vm.provider "virtualbox" do |vb|
+    # 2.1 Create a SATA controller (if it doesn’t already exist)
+    vb.customize [
+      "storagectl",
+      :id,
+      "--name", "SATA Controller",
+      "--add", "sata",
+      "--controller", "IntelAhci",
+      "--portcount", "4"          # 4 ports gives you 0‑3 (0 is the OS disk)
+    ]
+
+    # 2.2 Create the disk file (10 GB ≈ 10240 MB)
+    vb.customize [
+      "createhd",
+      "--filename", "exp_disk.vdi",
+      "--size", "10240",          # MB
+      "--format", "VDI",
+      "--variant", "Standard"
+    ]
+
+    # 2.3 Attach it as /dev/sdb (port 1, device 0)
+    vb.customize [
+      "storageattach",
+      :id,
+      "--storagectl", "SATA Controller",
+      "--port", 1,
+      "--device", 0,
+      "--type", "hdd",
+      "--medium", "exp_disk.vdi"
+    ]
+  end
+
+  # 3. Provision: install tools, create partition, mount (optional)
+  config.vm.provision "shell", inline: <<-SHELL
+    sudo apt-get update -y
+    sudo apt-get install -y e2fsprogs gdisk parted
+
+    # Create a single ext4 partition if it doesn't exist
+    if ! sudo fdisk -l /dev/sdb | grep -q '^Disk /dev/sdb'; then
+      echo "Creating a single partition on /dev/sdb..."
+      echo -e "n\np\n1\n\n\nw" | sudo fdisk /dev/sdb
+      sudo partprobe /dev/sdb
+      sudo mkfs.ext4 /dev/sdb1
+      sudo mkdir -p /mnt/exp
+      echo '/dev/sdb1 /mnt/exp ext4 defaults 0 0' | sudo tee -a /etc/fstab
+      sudo mount -a
+    fi
+  SHELL
+end
