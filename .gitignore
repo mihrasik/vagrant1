@@ -1,0 +1,100 @@
+# -----------------------------
+# Vagrant & VirtualBox
+# -----------------------------
+.vagrant/
+*.vdi
+
+# -----------------------------
+# Docker
+# -----------------------------
+# Docker’s image and container data live under
+# ~/.docker, /var/lib/docker, etc. – they’re not part of the repo.
+# If you have a local `docker-compose.override.yml` that contains secrets
+# or machine‑specific settings, ignore it.
+docker-compose.override.yml
+
+# -----------------------------
+# Environment & secrets
+# -----------------------------
+.env
+.env.*          # e.g. .env.local, .env.dev
+*.env.example   # keep examples if you want
+
+# -----------------------------
+# IDE / editor artefacts
+# -----------------------------
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# -----------------------------
+# OS generated files
+# -----------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# -----------------------------
+# Build / output directories
+# -----------------------------
+/bin/
+/obj/
+/build/
+/dist/
+/target/
+/coverage/
+/tmp/
+*.log
+*.tmp
+
+# -----------------------------
+# Language‑specific deps
+# -----------------------------
+# Node.js
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+ENV/
+
+# Ruby
+*.gem
+.bundle/
+.gems/
+vendor/bundle/
+
+# Java / Gradle / Maven
+.gradle/
+target/
+build/
+out/
+*.class
+
+# Go
+/bin/
+/pkg/
+vendor/
+
+# Rust
+/target/
+Cargo.lock   # (commit this – it’s deterministic)
+
+# .NET
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# -----------------------------
+# Miscellaneous
+# -----------------------------
+# Docker‑Compose files that contain secrets
+docker-compose.secret.yml
