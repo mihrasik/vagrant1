@@ -98,3 +98,5 @@ obj/
 # -----------------------------
 # Docker‑Compose files that contain secrets
 docker-compose.secret.yml
+
+.fuse_hidden*
