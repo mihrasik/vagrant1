@@ -21,6 +21,8 @@ Vagrant.configure("2") do |config|
       unless File.exist?(disk_path)
         puts "==> Creating additional disk at #{disk_path}"
         system("VBoxManage createhd --filename \"#{disk_path}\" --size #{size_mb} --format VDI")
+        system("VBoxManage modifyhd \"#{disk_path}\" --type=normal")
+
       else
         puts "==> Disk #{disk_path} already exists. Skipping creation."
       end
@@ -75,116 +77,131 @@ Vagrant.configure("2") do |config|
   # ------------------------------------------------------------------
   config.vm.provision "shell", privileged: true, run: "always" do |s|
     s.inline = <<-SHELL
+      #!/usr/bin/env bash
       set -euo pipefail
 
-      # 3a. Make sure we have the LVM tools
+      # ------------------------------------------------------------------
+      # 0.  Inform the user that the script is starting
+      # ------------------------------------------------------------------
+      echo "=== Starting disk/LVM setup script ==="
+
+      # ------------------------------------------------------------------
+      # 1.  Make sure we have the LVM tools
+      # ------------------------------------------------------------------
+      echo "=== 1. Checking for lvm2 ==="
       if dpkg -s lvm2 &>/dev/null; then
           echo "lvm2 is installed"
       else
           echo "lvm2 is NOT installed"
           echo "Installing lvm2..."
+          echo "=== 1a. Updating package lists ==="
           apt-get update
+          echo "=== 1b. Installing lvm2 ==="
           apt-get install -y lvm2
       fi
 
-      # 3b. Wait a bit for the kernel to notice the new disks
-      echo "Waiting for /dev/sdb and /dev/sdc to appear..."
+      # ------------------------------------------------------------------
+      # 2.  Wait for the kernel to see the new disks
+      # ------------------------------------------------------------------
+      echo "=== 2. Waiting for /dev/sdb and /dev/sdc to appear ==="
       while [ ! -b /dev/sdb ] || [ ! -b /dev/sdc ]; do
-        sleep 1
+          sleep 1
       done
+      echo "=== 2. Disks are present ==="
 
-      # 3c. Create a single partition on each disk (primary, bootable flag not needed)
+      # ------------------------------------------------------------------
+      # 3.  Create a single partition on each disk
+      # ------------------------------------------------------------------
       for dev_name in "sdb" "sdc"; do
-        dev="/dev/${dev_name}"
+          dev="/dev/${dev_name}"
+          echo "=== 3. Creating partition on $dev ==="
 
-        echo "Creating partition on $dev..."
-        DISK=$dev
+          # 3a.  Verify we see the disk
+          echo "=== 3a. Checking disk properties ==="
+          read -r NAME SIZE TYPE MOUNTPOINT < <(
+              lsblk -n -o NAME,SIZE,TYPE,MOUNTPOINT "$dev"
+          )
+          EXPECTED_NAME=$dev_name
+          EXPECTED_SIZE="1G"
+          if [[ "$NAME" != "$EXPECTED_NAME" || "$SIZE" != "$EXPECTED_SIZE" ]]; then
+              echo "ERROR: Device check failed." >&2
+              echo "  Expected: name=$EXPECTED_NAME, size=$EXPECTED_SIZE" >&2
+              echo "  Found:    name=$NAME, size=$SIZE" >&2
+              exit 1
+          fi
 
-        # 1. Make sure we see the disk
+          # 3b.  Install gdisk if we don't already have it
+          echo "=== 3b. Ensuring gdisk is installed ==="
+          apt-get update
+          apt-get install -y gdisk
 
-        # Grab the values
-        read -r NAME SIZE TYPE MOUNTPOINT < <(
-            lsblk -n -o NAME,SIZE,TYPE,MOUNTPOINT "$dev"
-        )
+          # 3c.  Partition size (300 MiB)
+          part_size="300M"
 
-        # Expected values
-        EXPECTED_NAME=$dev_name
-        EXPECTED_SIZE="1G"
+          # 3d.  Create an msdos partition table
+          echo "=== 3c. Zapping any existing partition table on $dev ==="
+          sgdisk --zap-all "$dev"
 
-        # Validate
-        if [[ "$NAME" != "$EXPECTED_NAME" || "$SIZE" != "$EXPECTED_SIZE" ]]; then
-            echo "ERROR: Device check failed." >&2
-            echo "  Expected: name=$EXPECTED_NAME, size=$EXPECTED_SIZE" >&2
-            echo "  Found:    name=$NAME, size=$SIZE" >&2
-            exit 1          # stops the script immediately
-        fi
+          # 3e.  Create two 300 MiB primary partitions
+          echo "=== 3d. Creating two 300 MiB partitions on $dev ==="
+          sgdisk --new=1:0:+$part_size --typecode=1:8300 "$dev"
+          sgdisk --new=2:0:+$part_size --typecode=2:8300 "$dev"
 
-        apt-get update
-        apt-get install -y gdisk
-        
-        part_size = "300M"
+          # 3f.  Re‑read the partition table
+          echo "=== 3e. Re‑reading partition table for $dev ==="
+          partprobe "$dev" || partx -a "$dev"
 
-        # 2. Create an msdos partition table
-        sgdisk --zap-all $DISK
-        # sgdisk --mbrtogpt $DISK   # optional if you prefer GPT; remove if you want msdos
-        # OR: parted -s $DISK mklabel msdos
-
-        # 3. Create two 300 MiB primary partitions
-        sgdisk --new=1:0:+$part_size --typecode=1:8300 $DISK
-        sgdisk --new=2:0:+$part_size --typecode=2:8300 $DISK
-
-        # 4. (Optional) Mark them as bootable
-        # sgdisk --attributes=1:set:2 $DISK
-        # sgdisk --attributes=2:set:2 $DISK
-
-        # 5. Re‑read the partition table
-        partprobe $DISK || partx -a $DISK
-
-        # 6. Format the partitions
-        mkfs.ext4 -F ${DISK}1
-        mkfs.ext4 -F ${DISK}2
-
-        # Mounting partitions before creating PVs	pvcreate will fail if the partition is mounted.	Unmount them first, or skip partitioning entirely.
-        # 7. Mount them
-        # mkdir -p /mnt/part1 /mnt/part2
-        # mount ${DISK}1 /mnt/part1
-        # mount ${DISK}2 /mnt/part2
-
-        # 8. Persist mounts
-        # bash -c "cat >>/etc/fstab <<EOF
-        # ${DISK}1 /mnt/part1 ext4 defaults 0 2
-        # ${DISK}2 /mnt/part2 ext4 defaults 0 2
-        # EOF"
-        # Make the kernel re-read the partition table
-        # partprobe "$dev"
+          # Wait a bit so the kernel creates /dev/sdb1 /dev/sdb2
+          # Option A – udev settle (recommended)
+          udevadm settle -t 5
+          
+          # 3g.  Format the partitions
+          echo "=== 3f. Formatting partitions on $dev ==="
+          mkfs.ext4 -F "${dev}1"
+          mkfs.ext4 -F "${dev}2"
       done
+      echo "=== 3. Partitioning complete ==="
 
-      
-      # 3e. Create LVM physical volumes
-      echo "Creating LVM PVs..."
+      # ------------------------------------------------------------------
+      # 4.  Create LVM physical volumes
+      # ------------------------------------------------------------------
+      echo "=== 4. Creating LVM PVs on all partitions ==="
       pvcreate -ff -y /dev/sdb1 /dev/sdb2 /dev/sdc1 /dev/sdc2
 
-      # 3f. Create a volume group named 'vgdata'
-      echo "Creating volume group 'vgdata'..."
+      # ------------------------------------------------------------------
+      # 5.  Create a volume group named 'vgdata'
+      # ------------------------------------------------------------------
+      echo "=== 5. Creating volume group 'vgdata' ==="
       vgcreate vgdata /dev/sdb1 /dev/sdb2 /dev/sdc1 /dev/sdc2
 
-      # 3g. Create a logical volume – e.g. 1G
-      echo "Creating logical volume 'lvdata' (1G)..."
+      # ------------------------------------------------------------------
+      # 6.  Create a logical volume – e.g. 1G
+      # ------------------------------------------------------------------
+      echo "=== 6. Creating logical volume 'lvdata' (1G) ==="
       lvcreate -L 1G -n lvdata vgdata
 
-      # 3h. Format the LV with ext4
-      echo "Formatting /dev/vgdata/lvdata..."
+      # ------------------------------------------------------------------
+      # 7.  Format the LV with ext4
+      # ------------------------------------------------------------------
+      echo "=== 7. Formatting /dev/vgdata/lvdata ==="
       mkfs.ext4 -F /dev/vgdata/lvdata
 
-      # 3i. (Optional) Mount the LV and add to /etc/fstab
+      # ------------------------------------------------------------------
+      # 8.  Mount the LV and add to /etc/fstab
+      # ------------------------------------------------------------------
       mount_point="/mnt/lvdata"
+      echo "=== 8. Mounting /dev/vgdata/lvdata to $mount_point ==="
       mkdir -p "$mount_point"
       mount /dev/vgdata/lvdata "$mount_point"
 
-      echo "Adding to /etc/fstab for persistence..."
+      echo "=== 8a. Adding mount to /etc/fstab for persistence ==="
       echo "/dev/vgdata/lvdata $mount_point ext4 defaults 0 0" >> /etc/fstab
 
-      echo "All done – disks are partitioned, formatted, and LVM is ready!"
+      # ------------------------------------------------------------------
+      # 9.  Done
+      # ------------------------------------------------------------------
+      echo "=== All done – disks are partitioned, formatted, and LVM is ready! ==="
+
     SHELL
   end
 end
