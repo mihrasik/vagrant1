@@ -1,0 +1,47 @@
+---
+- name: Configure NGINX from scratch # to apply: cd /vagrant/playbooks &&   ansible-playbook -i inventory.ini nginx_config_playbook.yml --check && ansible-playbook -i inventory.ini nginx_config_playbook.yml
+  hosts: app-1
+  become: yes          # use sudo for all tasks
+  gather_facts: no     # we don't need facts for this simple play
+
+  vars:
+    # Desired nginx configuration
+    nginx_conf: |
+      events {
+      }
+      http {
+          server {
+              listen 80;
+              server_name cours1.cours-datascientest.cloudns.ph;
+              return 200 "Welcome to Datascientest, we are on the NGINX course!";
+          }
+      }
+
+  tasks:
+    - name: Backup existing nginx.conf
+      copy:
+        src: /etc/nginx/nginx.conf
+        dest: /etc/nginx/nginx.conf.backup
+        remote_src: yes
+      # We don't want the play to fail if the backup already exists
+      ignore_errors: yes
+
+    - name: Deploy new nginx.conf
+      copy:
+        dest: /etc/nginx/nginx.conf
+        content: "{{ nginx_conf }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Test NGINX configuration
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+      failed_when: nginx_test.rc != 0
+
+    - name: Reload NGINX to apply changes
+      service:
+        name: nginx
+        state: reloaded
+      when: nginx_test.rc == 0
