@@ -1,10 +1,10 @@
 - hosts: all
   gather_facts: no
-  become: yes
+  become: true
   tasks:
     - name: Install nginx
       ansible.builtin.apt:
-        name: nginx=1.18.0-6ubuntu14.6
+        name: nginx
         state: fixed
         update_cache: true
         autoremove: true
